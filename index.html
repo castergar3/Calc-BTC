@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d0c09" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>BTC · Calculadora de Inversión</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e8e0cc; min-height: 100vh; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type=number] { -moz-appearance: textfield; }
+    input[type=range] { accent-color: #f7931a; width: 100%; cursor: pointer; }
+    input[type=checkbox] { accent-color: #f7931a; width: 15px; height: 15px; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { padding: 8px 10px; text-align: left; font-weight: normal; font-size: 11px; color: #8a7850; letter-spacing: 0.08em; }
+    td { padding: 9px 10px; color: #c8c0aa; vertical-align: middle; }
+    tr.alt { background: #0a0908; }
+    tr { border-top: 1px solid #1a1810; }
+    .card { background: #111009; border: 1px solid #2a2416; border-radius: 6px; padding: 14px 16px; }
+    .card-label { font-size: 10px; color: #9a8860; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+    .card-unit { font-size: 10px; color: #7a6840; }
+    .panel { background: #0e0d08; border: 1px solid #2a2416; border-radius: 8px; padding: 20px; }
+    .section-title { font-size: 11px; color: #a89060; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+    .result-card { background: #0a0908; border: 1px solid #1e1c14; border-radius: 5px; padding: 12px 14px; }
+    .result-label { font-size: 11px; color: #8a7850; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .result-sub { font-size: 11px; color: #7a6840; margin-top: 2px; }
+    .field label { font-size: 11px; color: #9a8860; letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 5px; }
+    .field input { background: #141209; border: 1px solid #2a2416; color: #e8e0cc; border-radius: 4px; padding: 9px 12px; font-size: 14px; font-family: inherit; outline: none; width: 100%; }
+    .btn-add  { background: linear-gradient(135deg,#f7931a,#c47a10); border: none; border-radius: 5px; color: #000; font-family: inherit; font-weight: bold; font-size: 13px; padding: 10px 22px; cursor: pointer; letter-spacing: 0.05em; white-space: nowrap; }
+    .btn-sell { background: linear-gradient(135deg,#2a6040,#1e4a30); border: 1px solid #3a7050; border-radius: 5px; color: #4cdf7a; font-family: inherit; font-weight: bold; font-size: 12px; padding: 10px 18px; cursor: pointer; letter-spacing: 0.08em; }
+    .btn-del  { background: none; border: 1px solid #3a2020; color: #8a4040; border-radius: 3px; cursor: pointer; padding: 2px 8px; font-size: 11px; font-family: inherit; }
+    .btn-small{ background: #1a1810; border: 1px solid #3a3020; color: #a89060; border-radius: 4px; cursor: pointer; width: 32px; height: 32px; font-size: 18px; font-family: inherit; }
+    .btn-export { background: linear-gradient(135deg,#1a2a4a,#0e1a30); border: 1px solid #2a4070; border-radius: 5px; color: #6ab0f7; font-family: inherit; font-weight: bold; font-size: 12px; padding: 8px 16px; cursor: pointer; letter-spacing: 0.08em; white-space: nowrap; }
+    .btn-expand { background: none; border: none; color: #8a7850; cursor: pointer; font-size: 13px; padding: 0 6px; font-family: inherit; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal { background: #111009; border: 1px solid #3a5030; border-radius: 10px; padding: 28px; width: 360px; max-width: 95vw; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .hidden { display: none; }
+    .overflow-x { overflow-x: auto; }
+    .hint { font-size: 11px; color: #8a7850; margin-top: 10px; }
+    .group-purchases { background: #080806; border-top: 1px solid #1a1810; }
+    .group-purchases table { font-size: 11px; }
+    .group-purchases th { font-size: 10px; color: #5a5030; padding: 5px 10px; }
+    .group-purchases td { padding: 5px 10px; color: #8a8070; }
+  </style>
+</head>
+<body>
+
+<!-- Barra superior -->
+<div style="border-bottom:1px solid #2a2416;padding:14px 20px;display:flex;align-items:center;gap:12px;background:#0d0c09;position:sticky;top:0;z-index:50;">
+  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f7931a,#e8760a);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#fff;flex-shrink:0;">₿</div>
+  <span style="font-size:13px;letter-spacing:0.12em;color:#a89060;text-transform:uppercase;">BTC · Calculadora</span>
+  <div style="margin-left:auto;font-size:11px;color:#8a7850;">COMISIÓN 0,075%</div>
+</div>
+
+<div style="max-width:900px;margin:0 auto;padding:20px 14px;display:flex;flex-direction:column;gap:20px;">
+
+  <!-- Tarjetas resumen -->
+  <div id="summary-cards" class="hidden grid-cards"></div>
+
+  <!-- Panel objetivo de ganancia -->
+  <div class="panel" style="border-color:#3a3020;">
+    <div class="section-title">Objetivo de Ganancia</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn-small" onclick="changeProfit(-1)">−</button>
+        <div style="position:relative;">
+          <input type="number" id="targetProfit" value="10" min="0.1" step="0.5"
+            style="background:#1a1810;border:1px solid #3a3020;color:#f7931a;border-radius:4px;padding:8px 28px 8px 10px;width:85px;font-size:20px;font-weight:bold;font-family:inherit;text-align:center;outline:none;"
+            oninput="render()" />
+          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#a89060;font-size:14px;">%</span>
+        </div>
+        <button class="btn-small" onclick="changeProfit(1)">+</button>
+      </div>
+      <input type="range" id="profitRange" min="0.1" max="200" step="0.5" value="10"
+        style="flex:1;min-width:100px;" oninput="syncRange(this.value)" />
+    </div>
+    <div id="profit-panel">
+      <div style="text-align:center;color:#7a6840;font-size:13px;padding:20px 0;">
+        Añade compras para ver el precio objetivo de venta
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario añadir compra + botón vender -->
+  <div style="display:grid;grid-template-columns:1fr;gap:12px;" id="buy-grid">
+    <div class="panel">
+      <div class="section-title">Añadir Compra</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="field" style="flex:1;min-width:130px;">
+          <label>Dólares ($)</label>
+          <input type="number" id="buyAmount" placeholder="Ej: 500" oninput="renderHint()" />
+        </div>
+        <div class="field" style="flex:1;min-width:130px;">
+          <label>Precio BTC ($/BTC)</label>
+          <input type="number" id="buyPrice" placeholder="Ej: 62000" oninput="renderHint()" />
+        </div>
+        <button class="btn-add" onclick="addPurchase()">+ AÑADIR</button>
+      </div>
+      <div id="buy-hint" class="hint hidden"></div>
+    </div>
+    <div id="sell-box" class="hidden" style="background:#0e1a10;border:1px solid #2a5030;border-radius:8px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;">
+      <div style="font-size:11px;color:#4caf7a;letter-spacing:0.12em;text-transform:uppercase;">Vender Todo</div>
+      <div id="sell-box-btc" style="font-size:11px;color:#3a6040;"></div>
+      <button class="btn-sell" onclick="openSellModal()">REGISTRAR VENTA</button>
+    </div>
+  </div>
+
+  <!-- Tabla compras abiertas -->
+  <div id="purchases-table" class="hidden panel" style="padding:0;overflow:hidden;">
+    <div style="padding:14px 16px;border-bottom:1px solid #1e1c14;font-size:11px;color:#a89060;letter-spacing:0.15em;text-transform:uppercase;" id="purchases-title"></div>
+    <div class="overflow-x">
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th>Dólares</th><th>Precio Compra</th><th>BTC</th><th>Comisión</th><th>Coste Total</th><th></th>
+        </tr></thead>
+        <tbody id="purchases-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Historial de ventas / grupos -->
+  <div id="sales-table" class="hidden panel" style="padding:0;overflow:hidden;">
+    <div style="padding:14px 16px;border-bottom:1px solid #1e1c14;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:11px;color:#a89060;letter-spacing:0.15em;text-transform:uppercase;" id="sales-title"></span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:bold;" id="sales-pnl-total"></span>
+        <button class="btn-export" onclick="exportExcel()">⬇ Exportar CSV</button>
+      </div>
+    </div>
+    <!-- Selección para exportar -->
+    <div style="padding:10px 16px;border-bottom:1px solid #1a1810;display:flex;align-items:center;gap:10px;font-size:11px;color:#6a6050;">
+      <input type="checkbox" id="chk-all" onchange="toggleAll(this.checked)" title="Seleccionar todos" />
+      <label for="chk-all" style="cursor:pointer;color:#8a7850;">Seleccionar todos para exportar</label>
+    </div>
+    <div id="sales-body"></div>
+  </div>
+
+  <div style="font-size:10px;color:#6a6050;text-align:center;letter-spacing:0.08em;">
+    Comisión 0,075% en compra y venta · Solo orientativo, no es asesoramiento financiero
+  </div>
+</div>
+
+<!-- Modal de venta -->
+<div id="sell-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div style="font-size:12px;color:#4caf7a;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px;">Registrar Venta — Posición Completa</div>
+    <div id="modal-subtitle" style="font-size:11px;color:#6a7860;margin-bottom:20px;"></div>
+    <div class="field">
+      <label>Precio de Venta ($/BTC)</label>
+      <input type="number" id="sellPriceInput" placeholder="Ej: 70000" oninput="renderModalPreview()" />
+    </div>
+    <div id="modal-preview" class="hidden" style="margin-top:16px;background:#0a0c09;border:1px solid #1e2c1e;border-radius:6px;padding:14px;">
+      <div class="grid2">
+        <div><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Ingresos Brutos</div><div id="prev-gross" style="font-size:14px;font-weight:bold;"></div></div>
+        <div><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Comisión Venta</div><div id="prev-fee" style="font-size:14px;font-weight:bold;color:#c47a40;"></div></div>
+        <div><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Ingresos Netos</div><div id="prev-net" style="font-size:14px;font-weight:bold;"></div></div>
+        <div><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Coste Base</div><div id="prev-cost" style="font-size:14px;font-weight:bold;"></div></div>
+        <div style="grid-column:1/-1"><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Ganancia Neta</div><div id="prev-pnl" style="font-size:14px;font-weight:bold;"></div></div>
+        <div style="grid-column:1/-1"><div style="font-size:10px;color:#6a6040;text-transform:uppercase;">Rentabilidad</div><div id="prev-pct" style="font-size:14px;font-weight:bold;"></div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeSellModal()" style="flex:1;background:#1a1810;border:1px solid #3a3020;color:#a89060;border-radius:5px;padding:10px;cursor:pointer;font-family:inherit;font-size:13px;">Cancelar</button>
+      <button id="btn-confirm-sell" onclick="confirmSell()" disabled style="flex:2;background:#1a1810;border:1px solid #2a2416;color:#4a4030;border-radius:5px;padding:10px;cursor:not-allowed;font-family:inherit;font-weight:bold;font-size:13px;">✓ CONFIRMAR VENTA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FEE = 0.00075;
+let purchases = JSON.parse(localStorage.getItem('btc_purchases') || '[]');
+let sales     = JSON.parse(localStorage.getItem('btc_sales')     || '[]');
+let expanded  = {};  // saleId -> bool
+
+function save() {
+  localStorage.setItem('btc_purchases', JSON.stringify(purchases));
+  localStorage.setItem('btc_sales',     JSON.stringify(sales));
+}
+
+const fmt    = (v,d=2) => v!=null ? v.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+const fmtBTC = v => v!=null ? v.toLocaleString('es-ES',{minimumFractionDigits:6,maximumFractionDigits:8}) : '—';
+const usd    = (v,d=2) => '$'+fmt(v,d);
+const today  = () => new Date().toLocaleDateString('es-ES');
+const n      = (v,d=2) => parseFloat(v.toFixed(d));  // clean number for Excel
+
+function getTargetProfit() { return parseFloat(document.getElementById('targetProfit').value)||0; }
+function getTotals() {
+  const totalBTC      = purchases.reduce((s,p)=>s+p.btc,0);
+  const totalInvested = purchases.reduce((s,p)=>s+p.totalCost,0);
+  return {totalBTC, totalInvested};
+}
+
+function changeProfit(d) {
+  const el = document.getElementById('targetProfit');
+  el.value = Math.max(0.1, parseFloat((parseFloat(el.value||0)+d).toFixed(1)));
+  document.getElementById('profitRange').value = el.value;
+  render();
+}
+function syncRange(v) { document.getElementById('targetProfit').value=v; render(); }
+
+function addPurchase() {
+  const amt   = parseFloat(document.getElementById('buyAmount').value);
+  const price = parseFloat(document.getElementById('buyPrice').value);
+  if (!amt||!price||amt<=0||price<=0) return;
+  const buyFee=amt*FEE, totalCost=amt+buyFee, btc=amt/price;
+  purchases.push({id:Date.now(), usd:amt, price, btc, buyFee, totalCost, date:today()});
+  document.getElementById('buyAmount').value='';
+  document.getElementById('buyPrice').value='';
+  document.getElementById('buy-hint').classList.add('hidden');
+  save(); render();
+}
+
+function removePurchase(id) { purchases=purchases.filter(p=>p.id!==id); save(); render(); }
+function removeSale(id)     { sales=sales.filter(s=>s.id!==id); save(); render(); }
+
+function openSellModal() {
+  const {totalBTC,totalInvested}=getTotals();
+  const avgBuy=totalBTC>0?totalInvested/totalBTC:0;
+  document.getElementById('modal-subtitle').textContent=
+    purchases.length+' compra'+(purchases.length!==1?'s':'')+
+    ' · '+fmtBTC(totalBTC)+' BTC · Precio medio '+usd(avgBuy);
+  document.getElementById('sellPriceInput').value='';
+  document.getElementById('modal-preview').classList.add('hidden');
+  document.getElementById('sell-modal').classList.remove('hidden');
+  renderModalPreview();
+}
+function closeSellModal() { document.getElementById('sell-modal').classList.add('hidden'); }
+
+function renderModalPreview() {
+  const sp=parseFloat(document.getElementById('sellPriceInput').value);
+  const {totalBTC,totalInvested}=getTotals();
+  const btn=document.getElementById('btn-confirm-sell');
+  if (!sp||sp<=0||totalBTC===0) {
+    document.getElementById('modal-preview').classList.add('hidden');
+    btn.disabled=true; btn.style.background='#1a1810'; btn.style.color='#4a4030'; btn.style.cursor='not-allowed'; btn.style.border='1px solid #2a2416';
+    return;
+  }
+  const gross=totalBTC*sp, fee=gross*FEE, net=gross-fee, pnl=net-totalInvested;
+  const pct=totalInvested>0?(pnl/totalInvested)*100:0;
+  const col=pnl>=0?'#4caf7a':'#e05050';
+  document.getElementById('prev-gross').textContent=usd(gross);
+  document.getElementById('prev-fee').textContent=usd(fee);
+  document.getElementById('prev-net').textContent=usd(net);
+  document.getElementById('prev-cost').textContent=usd(totalInvested);
+  document.getElementById('prev-pnl').textContent=(pnl>=0?'+':'')+usd(pnl);
+  document.getElementById('prev-pnl').style.color=col;
+  document.getElementById('prev-pct').textContent=(pct>=0?'+':'')+fmt(pct,2)+'%';
+  document.getElementById('prev-pct').style.color=col;
+  document.getElementById('modal-preview').classList.remove('hidden');
+  btn.disabled=false; btn.style.background='linear-gradient(135deg,#2a6040,#1e4a30)'; btn.style.color='#4cdf7a'; btn.style.cursor='pointer'; btn.style.border='1px solid #3a7050';
+}
+
+function confirmSell() {
+  const sp=parseFloat(document.getElementById('sellPriceInput').value);
+  const {totalBTC,totalInvested}=getTotals();
+  if (!sp||sp<=0||totalBTC===0) return;
+  const avgBuyPrice=totalInvested/totalBTC;
+  const gross=totalBTC*sp, fee=gross*FEE, net=gross-fee;
+  const pnl=net-totalInvested, pnlPct=(pnl/totalInvested)*100;
+  const id=Date.now();
+  // Guardamos snapshot de las compras vinculadas a esta venta
+  sales.unshift({
+    id, date:today(), btc:totalBTC, avgBuyPrice, sellPrice:sp,
+    costBasis:totalInvested, gross, fee, net, pnl, pnlPct,
+    linkedPurchases: JSON.parse(JSON.stringify(purchases))  // snapshot
+  });
+  purchases=[];
+  closeSellModal();
+  save(); render();
+}
+
+function toggleExpand(id) {
+  expanded[id] = !expanded[id];
+  render();
+}
+
+function toggleAll(checked) {
+  document.querySelectorAll('.chk-sale').forEach(c => c.checked=checked);
+}
+
+function renderHint() {
+  const amt=parseFloat(document.getElementById('buyAmount').value);
+  const price=parseFloat(document.getElementById('buyPrice').value);
+  const hint=document.getElementById('buy-hint');
+  if (amt>0&&price>0) {
+    hint.textContent='→ ≈ '+fmtBTC(amt/price)+' BTC · Comisión: '+usd(amt*FEE);
+    hint.classList.remove('hidden');
+  } else { hint.classList.add('hidden'); }
+}
+
+// ── Exportar CSV (abre en Excel sin librerías externas) ───────────────────────
+function exportExcel() {
+  const checked = [...document.querySelectorAll('.chk-sale:checked')];
+  if (checked.length===0) { alert('Selecciona al menos un grupo para exportar.'); return; }
+
+  const SEP = ';';  // punto y coma, compatible con Excel en español
+  const q   = v => '"'+String(v).replace(/"/g,'""')+'"';
+  const num  = v => String(v).replace('.',',');  // coma decimal para Excel ES
+  const rows = [];
+
+  // Cabecera global
+  rows.push([q('BTC CALCULADORA DE INVERSIÓN'), q(new Date().toLocaleDateString('es-ES'))].join(SEP));
+  rows.push('');
+
+  checked.forEach((chk, idx) => {
+    const s = sales.find(x=>x.id===parseInt(chk.dataset.id));
+    if (!s) return;
+    const lp = s.linkedPurchases || [];
+
+    rows.push(q('── GRUPO '+(idx+1)+' ──────────────────────────'));
+    rows.push('');
+
+    // Resumen venta
+    rows.push([q('RESUMEN DE VENTA'),'','','','','','',''].join(SEP));
+    rows.push([
+      q('Fecha Venta'), q('BTC Vendido'), q('P. Medio Compra'), q('Precio Venta'),
+      q('Coste Base'), q('Ingresos Netos'), q('Ganancia'), q('Rentabilidad')
+    ].join(SEP));
+    rows.push([
+      q(s.date), num(s.btc.toFixed(8)), num(s.avgBuyPrice.toFixed(2)), num(s.sellPrice.toFixed(2)),
+      num(s.costBasis.toFixed(2)), num(s.net.toFixed(2)),
+      num(s.pnl.toFixed(2)), num((s.pnlPct/100).toFixed(4))
+    ].join(SEP));
+    rows.push('');
+
+    // Compras vinculadas
+    if (lp.length > 0) {
+      rows.push([q('COMPRAS VINCULADAS'),'','','','',''].join(SEP));
+      rows.push([
+        q('Fecha Compra'), q('Dólares Invertidos'), q('Precio Compra'),
+        q('BTC Obtenidos'), q('Comisión Compra'), q('Coste Total')
+      ].join(SEP));
+      lp.forEach(p => {
+        rows.push([
+          q(p.date), num(p.usd.toFixed(2)), num(p.price.toFixed(2)),
+          num(p.btc.toFixed(8)), num(p.buyFee.toFixed(2)), num(p.totalCost.toFixed(2))
+        ].join(SEP));
+      });
+      // Totales compras
+      rows.push([
+        q('TOTALES'),
+        num(lp.reduce((s,p)=>s+p.usd,0).toFixed(2)), '',
+        num(lp.reduce((s,p)=>s+p.btc,0).toFixed(8)),
+        num(lp.reduce((s,p)=>s+p.buyFee,0).toFixed(2)),
+        num(lp.reduce((s,p)=>s+p.totalCost,0).toFixed(2))
+      ].join(SEP));
+    }
+    rows.push('');
+    rows.push('');
+  });
+
+  // Resumen global si hay más de uno
+  if (checked.length > 1) {
+    rows.push(q('── RESUMEN GLOBAL ──────────────────────────'));
+    rows.push('');
+    rows.push([
+      q('Fecha'), q('BTC'), q('P.M. Compra'), q('P. Venta'),
+      q('Coste Base'), q('Ing. Netos'), q('Ganancia'), q('Rentabilidad')
+    ].join(SEP));
+    let totalPnl = 0;
+    checked.forEach(chk => {
+      const s = sales.find(x=>x.id===parseInt(chk.dataset.id));
+      if (!s) return;
+      totalPnl += s.pnl;
+      rows.push([
+        q(s.date), num(s.btc.toFixed(8)), num(s.avgBuyPrice.toFixed(2)), num(s.sellPrice.toFixed(2)),
+        num(s.costBasis.toFixed(2)), num(s.net.toFixed(2)),
+        num(s.pnl.toFixed(2)), num((s.pnlPct/100).toFixed(4))
+      ].join(SEP));
+    });
+    rows.push([q('TOTAL'),'','','','','', num(totalPnl.toFixed(2)), ''].join(SEP));
+  }
+
+  // Descargar
+  const bom = '\uFEFF';  // BOM para que Excel reconozca UTF-8
+  const csv = bom + rows.join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'BTC_Inversiones_'+new Date().toLocaleDateString('es-ES').replace(/\//g,'-')+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const {totalBTC,totalInvested}=getTotals();
+  const avgBuyPrice=totalBTC>0?totalInvested/totalBTC:0;
+  const profit=getTargetProfit();
+  document.getElementById('profitRange').value=profit;
+
+  // Tarjetas resumen
+  const cardsEl=document.getElementById('summary-cards');
+  if (purchases.length>0) {
+    const totalRealizedPnl=sales.reduce((s,t)=>s+t.pnl,0);
+    let cards=[
+      {label:'BTC Total',value:fmtBTC(totalBTC),unit:'BTC',color:'#f7931a'},
+      {label:'Coste Base',value:usd(totalInvested),unit:'incl. comisiones compra',color:'#e8e0cc'},
+      {label:'Precio Medio Compra',value:usd(avgBuyPrice),unit:'$/BTC',color:'#a89060'},
+    ];
+    if(sales.length>0) cards.push({label:'Ganancia Realizada',value:(totalRealizedPnl>=0?'+':'')+usd(totalRealizedPnl),unit:'neto de comisiones',color:totalRealizedPnl>=0?'#4caf7a':'#e05050'});
+    cardsEl.innerHTML=cards.map(c=>`<div class="card"><div class="card-label">${c.label}</div><div style="font-size:18px;color:${c.color};font-weight:bold;">${c.value}</div><div class="card-unit">${c.unit}</div></div>`).join('');
+    cardsEl.classList.remove('hidden');
+  } else cardsEl.classList.add('hidden');
+
+  // Panel objetivo
+  const pp=document.getElementById('profit-panel');
+  if (purchases.length>0) {
+    const reqSell=(totalInvested*(1+profit/100))/(1-FEE)/totalBTC;
+    const netProc=reqSell*totalBTC*(1-FEE);
+    const netGain=netProc-totalInvested;
+    const totalBuyFees=purchases.reduce((s,p)=>s+p.buyFee,0);
+    const totalFees=totalBuyFees+reqSell*totalBTC*FEE;
+    const pctFromAvg=((reqSell-avgBuyPrice)/avgBuyPrice)*100;
+    pp.innerHTML=`<div class="grid2">
+      <div style="background:#141209;border:1px solid #f7931a33;border-radius:6px;padding:16px;grid-column:1/-1;">
+        <div style="font-size:11px;color:#9a8860;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">Precio de Venta Necesario</div>
+        <div style="font-size:28px;color:#f7931a;font-weight:bold;">${usd(reqSell)}<span style="font-size:13px;color:#a89060;margin-left:8px;font-weight:normal;">/ BTC</span></div>
+        <div style="font-size:11px;color:#8a7850;margin-top:4px;">+${fmt(pctFromAvg,2)}% sobre el precio medio de compra</div>
+      </div>
+      <div class="result-card"><div class="result-label">Ingresos Brutos</div><div style="font-size:15px;font-weight:bold;">${usd(reqSell*totalBTC)}</div><div class="result-sub">antes de comisión venta</div></div>
+      <div class="result-card"><div class="result-label">Ingresos Netos</div><div style="font-size:15px;font-weight:bold;">${usd(netProc)}</div><div class="result-sub">tras comisión venta</div></div>
+      <div class="result-card"><div class="result-label">Ganancia Neta</div><div style="font-size:15px;font-weight:bold;color:#4caf7a;">+${usd(netGain)}</div><div class="result-sub">objetivo ${profit}%</div></div>
+      <div class="result-card"><div class="result-label">Comisiones Totales</div><div style="font-size:15px;font-weight:bold;color:#c47a40;">${usd(totalFees)}</div><div class="result-sub">compra + venta proyectada</div></div>
+    </div>`;
+  } else {
+    pp.innerHTML='<div style="text-align:center;color:#7a6840;font-size:13px;padding:20px 0;">Añade compras para ver el precio objetivo de venta</div>';
+  }
+
+  // Botón vender
+  const sellBox=document.getElementById('sell-box');
+  if (purchases.length>0) {
+    document.getElementById('sell-box-btc').textContent=fmtBTC(totalBTC)+' ₿';
+    sellBox.classList.remove('hidden');
+    document.getElementById('buy-grid').style.gridTemplateColumns='1fr auto';
+  } else {
+    sellBox.classList.add('hidden');
+    document.getElementById('buy-grid').style.gridTemplateColumns='1fr';
+  }
+
+  // Tabla compras abiertas
+  const pt=document.getElementById('purchases-table');
+  if (purchases.length>0) {
+    document.getElementById('purchases-title').textContent='Compras Abiertas ('+purchases.length+')';
+    document.getElementById('purchases-body').innerHTML=purchases.map((p,i)=>`
+      <tr class="${i%2===1?'alt':''}">
+        <td>${p.date}</td><td>${usd(p.usd)}</td><td>${usd(p.price)}</td>
+        <td style="color:#f7931a">${fmtBTC(p.btc)} ₿</td>
+        <td style="color:#c47a40">${usd(p.buyFee)}</td>
+        <td>${usd(p.totalCost)}</td>
+        <td><button class="btn-del" onclick="removePurchase(${p.id})">✕</button></td>
+      </tr>`).join('');
+    pt.classList.remove('hidden');
+  } else pt.classList.add('hidden');
+
+  // Historial de ventas con grupos expandibles
+  const st=document.getElementById('sales-table');
+  if (sales.length>0) {
+    const totalPnl=sales.reduce((s,t)=>s+t.pnl,0);
+    document.getElementById('sales-title').textContent='Historial de Ventas ('+sales.length+')';
+    const pnlEl=document.getElementById('sales-pnl-total');
+    pnlEl.textContent='Ganancia Total: '+(totalPnl>=0?'+':'')+usd(totalPnl);
+    pnlEl.style.color=totalPnl>=0?'#4caf7a':'#e05050';
+
+    document.getElementById('sales-body').innerHTML = sales.map((s,i)=>{
+      const col=s.pnl>=0?'#4caf7a':'#e05050';
+      const lp=s.linkedPurchases||[];
+      const isExp=expanded[s.id];
+      const subTable=isExp&&lp.length>0?`
+        <div class="group-purchases">
+          <table>
+            <thead><tr>
+              <th>Fecha Compra</th><th>Dólares</th><th>Precio Compra</th><th>BTC</th><th>Comisión</th><th>Coste Total</th>
+            </tr></thead>
+            <tbody>
+              ${lp.map((p,j)=>`<tr class="${j%2===1?'alt':''}">
+                <td>${p.date}</td><td>${usd(p.usd)}</td><td>${usd(p.price)}</td>
+                <td style="color:#c8a060">${fmtBTC(p.btc)} ₿</td>
+                <td style="color:#8a6030">${usd(p.buyFee)}</td>
+                <td>${usd(p.totalCost)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`:''
+      ;
+      return `
+        <div style="border-bottom:1px solid #1a1810;background:${i%2===0?'transparent':'#0a0908'};">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;overflow-x:auto;">
+            <td style="display:flex;align-items:center;padding:9px 6px;">
+              <input type="checkbox" class="chk-sale" data-id="${s.id}" style="margin-right:6px;" />
+              <button class="btn-expand" onclick="toggleExpand(${s.id})" title="${lp.length} compra(s)">${isExp?'▾':'▸'} ${lp.length}</button>
+            </td>
+            <table style="flex:1;min-width:600px;"><tbody><tr>
+              <td>${s.date}</td>
+              <td style="color:#f7931a">${fmtBTC(s.btc)} ₿</td>
+              <td>${usd(s.avgBuyPrice)}</td>
+              <td>${usd(s.sellPrice)}</td>
+              <td>${usd(s.costBasis)}</td>
+              <td>${usd(s.net)}</td>
+              <td style="color:${col};font-weight:bold;">${s.pnl>=0?'+':''}${usd(s.pnl)}</td>
+              <td style="color:${col}">${s.pnlPct>=0?'+':''}${fmt(s.pnlPct,2)}%</td>
+              <td><button class="btn-del" onclick="removeSale(${s.id})">✕</button></td>
+            </tr></tbody></table>
+          </div>
+          ${subTable}
+        </div>`;
+    }).join('');
+
+    // Cabecera de columnas (una vez, encima)
+    const headerHTML=`<div style="display:flex;border-bottom:1px solid #2a2416;background:#0a0908;">
+      <div style="width:70px;flex-shrink:0;"></div>
+      <table style="flex:1;min-width:600px;"><thead><tr>
+        <th>Fecha</th><th>BTC</th><th>P.M. Compra</th><th>P. Venta</th><th>Coste Base</th><th>Ing. Netos</th><th>Ganancia</th><th>Rentab.</th><th></th>
+      </tr></thead></table>
+    </div>`;
+    document.getElementById('sales-body').insertAdjacentHTML('afterbegin', headerHTML);
+
+    st.classList.remove('hidden');
+  } else st.classList.add('hidden');
+}
+
+document.getElementById('targetProfit').addEventListener('input', render);
+render();
+</script>
+</body>
+</html>
