@@ -50,15 +50,22 @@
     .group-purchases table { font-size: 11px; }
     .group-purchases th { font-size: 10px; color: #5a5030; padding: 5px 10px; }
     .group-purchases td { padding: 5px 10px; color: #8a8070; }
+    #fee-input { background: #1a1810; border: 1px solid #3a3020; color: #f7931a; border-radius: 4px; padding: 3px 22px 3px 6px; width: 75px; font-size: 12px; font-family: inherit; text-align: right; outline: none; }
   </style>
 </head>
 <body>
 
 <!-- Barra superior -->
-<div style="border-bottom:1px solid #2a2416;padding:14px 20px;display:flex;align-items:center;gap:12px;background:#0d0c09;position:sticky;top:0;z-index:50;">
+<div style="border-bottom:1px solid #2a2416;padding:10px 20px;display:flex;align-items:center;gap:12px;background:#0d0c09;position:sticky;top:0;z-index:50;flex-wrap:wrap;">
   <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f7931a,#e8760a);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#fff;flex-shrink:0;">₿</div>
   <span style="font-size:13px;letter-spacing:0.12em;color:#a89060;text-transform:uppercase;">BTC · Calculadora</span>
-  <div style="margin-left:auto;font-size:11px;color:#8a7850;">COMISIÓN 0,075%</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+    <span style="font-size:10px;color:#8a7850;letter-spacing:0.08em;text-transform:uppercase;">Comisión</span>
+    <div style="position:relative;display:flex;align-items:center;">
+      <input type="number" id="fee-input" value="0.075" min="0" max="100" step="0.001" oninput="render()" />
+      <span style="position:absolute;right:5px;font-size:11px;color:#a89060;">%</span>
+    </div>
+  </div>
 </div>
 
 <div style="max-width:900px;margin:0 auto;padding:20px 14px;display:flex;flex-direction:column;gap:20px;">
@@ -133,7 +140,7 @@
       <span style="font-size:11px;color:#a89060;letter-spacing:0.15em;text-transform:uppercase;" id="sales-title"></span>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span style="font-size:13px;font-weight:bold;" id="sales-pnl-total"></span>
-        <button class="btn-export" onclick="exportExcel()">⬇ Exportar CSV</button>
+        <button class="btn-export" onclick="exportExcel()">⬇ Exportar a Sheets</button>
       </div>
     </div>
     <!-- Selección para exportar -->
@@ -145,7 +152,7 @@
   </div>
 
   <div style="font-size:10px;color:#6a6050;text-align:center;letter-spacing:0.08em;">
-    Comisión 0,075% en compra y venta · Solo orientativo, no es asesoramiento financiero
+    Solo orientativo · No es asesoramiento financiero
   </div>
 </div>
 
@@ -176,10 +183,14 @@
 </div>
 
 <script>
-const FEE = 0.00075;
 let purchases = JSON.parse(localStorage.getItem('btc_purchases') || '[]');
 let sales     = JSON.parse(localStorage.getItem('btc_sales')     || '[]');
-let expanded  = {};  // saleId -> bool
+let expanded  = {};
+
+function getFEE() {
+  const v = parseFloat(document.getElementById('fee-input').value);
+  return (isNaN(v) || v < 0) ? 0 : v / 100;
+}
 
 function save() {
   localStorage.setItem('btc_purchases', JSON.stringify(purchases));
@@ -190,7 +201,7 @@ const fmt    = (v,d=2) => v!=null ? v.toLocaleString('es-ES',{minimumFractionDig
 const fmtBTC = v => v!=null ? v.toLocaleString('es-ES',{minimumFractionDigits:6,maximumFractionDigits:8}) : '—';
 const usd    = (v,d=2) => '$'+fmt(v,d);
 const today  = () => new Date().toLocaleDateString('es-ES');
-const n      = (v,d=2) => parseFloat(v.toFixed(d));  // clean number for Excel
+const n      = (v,d=2) => parseFloat(v.toFixed(d));
 
 function getTargetProfit() { return parseFloat(document.getElementById('targetProfit').value)||0; }
 function getTotals() {
@@ -211,8 +222,9 @@ function addPurchase() {
   const amt   = parseFloat(document.getElementById('buyAmount').value);
   const price = parseFloat(document.getElementById('buyPrice').value);
   if (!amt||!price||amt<=0||price<=0) return;
+  const FEE = getFEE();
   const buyFee=amt*FEE, totalCost=amt+buyFee, btc=amt/price;
-  purchases.push({id:Date.now(), usd:amt, price, btc, buyFee, totalCost, date:today()});
+  purchases.push({id:Date.now(), usd:amt, price, btc, buyFee, totalCost, date:today(), feeUsed:FEE});
   document.getElementById('buyAmount').value='';
   document.getElementById('buyPrice').value='';
   document.getElementById('buy-hint').classList.add('hidden');
@@ -238,6 +250,7 @@ function closeSellModal() { document.getElementById('sell-modal').classList.add(
 function renderModalPreview() {
   const sp=parseFloat(document.getElementById('sellPriceInput').value);
   const {totalBTC,totalInvested}=getTotals();
+  const FEE=getFEE();
   const btn=document.getElementById('btn-confirm-sell');
   if (!sp||sp<=0||totalBTC===0) {
     document.getElementById('modal-preview').classList.add('hidden');
@@ -262,16 +275,16 @@ function renderModalPreview() {
 function confirmSell() {
   const sp=parseFloat(document.getElementById('sellPriceInput').value);
   const {totalBTC,totalInvested}=getTotals();
+  const FEE=getFEE();
   if (!sp||sp<=0||totalBTC===0) return;
   const avgBuyPrice=totalInvested/totalBTC;
   const gross=totalBTC*sp, fee=gross*FEE, net=gross-fee;
   const pnl=net-totalInvested, pnlPct=(pnl/totalInvested)*100;
   const id=Date.now();
-  // Guardamos snapshot de las compras vinculadas a esta venta
   sales.unshift({
     id, date:today(), btc:totalBTC, avgBuyPrice, sellPrice:sp,
     costBasis:totalInvested, gross, fee, net, pnl, pnlPct,
-    linkedPurchases: JSON.parse(JSON.stringify(purchases))  // snapshot
+    linkedPurchases: JSON.parse(JSON.stringify(purchases))
   });
   purchases=[];
   closeSellModal();
@@ -290,133 +303,111 @@ function toggleAll(checked) {
 function renderHint() {
   const amt=parseFloat(document.getElementById('buyAmount').value);
   const price=parseFloat(document.getElementById('buyPrice').value);
+  const FEE=getFEE();
   const hint=document.getElementById('buy-hint');
   if (amt>0&&price>0) {
-    hint.textContent='→ ≈ '+fmtBTC(amt/price)+' BTC · Comisión: '+usd(amt*FEE);
+    const feeText = FEE>0 ? ' · Comisión: '+usd(amt*FEE) : ' · Sin comisión';
+    hint.textContent='→ ≈ '+fmtBTC(amt/price)+' BTC'+feeText;
     hint.classList.remove('hidden');
   } else { hint.classList.add('hidden'); }
 }
 
-// ── Exportar CSV ──────────────────────────────────────────────────────────────
+// ── Exportar a Google Sheets ──────────────────────────────────────────────────
 function exportExcel() {
   const checked = [...document.querySelectorAll('.chk-sale:checked')];
   if (checked.length===0) { alert('Selecciona al menos un grupo para exportar.'); return; }
 
-  const SEP = ';';
-  // Eliminar caracteres no ASCII para maxima compatibilidad
-  const clean = s => String(s)
-    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u')
-    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U')
-    .replace(/ñ/g,'n').replace(/Ñ/g,'N').replace(/ü/g,'u').replace(/Ü/g,'U')
-    .replace(/[^\x20-\x7E]/g, '');
-  const q   = v => '"'+clean(v).replace(/"/g,'""')+'"';
-  const num = v => parseFloat(v).toFixed(2);
-  const btc = v => parseFloat(v).toFixed(8);
-  const rows = [];
+  const num = v => "'" + parseFloat(v).toFixed(2);
+  const btc = v => "'" + parseFloat(v).toFixed(8);
+  const allRows = [];
 
-  rows.push([q('BTC - CALCULADORA DE INVERSION'), q(new Date().toLocaleDateString('es-ES'))].join(SEP));
-  rows.push('');
+  allRows.push(['BTC - CALCULADORA DE INVERSION', new Date().toLocaleDateString('es-ES')]);
+  allRows.push([]);
 
   checked.forEach((chk, idx) => {
     const s = sales.find(x=>x.id===parseInt(chk.dataset.id));
     if (!s) return;
     const lp = s.linkedPurchases || [];
-
-    rows.push(q('--- GRUPO '+(idx+1)+' ---'));
-    rows.push('');
-
-    rows.push([q('RESUMEN DE VENTA'),'','','','','','',''].join(SEP));
-    rows.push([
-      q('Fecha Venta'), q('BTC Vendido'), q('Precio Medio Compra'), q('Precio Venta'),
-      q('Coste Base'), q('Ingresos Netos'), q('Ganancia'), q('Rentabilidad %')
-    ].join(SEP));
-    rows.push([
-      q(s.date), btc(s.btc), num(s.avgBuyPrice), num(s.sellPrice),
-      num(s.costBasis), num(s.net), num(s.pnl), num(s.pnlPct)
-    ].join(SEP));
-    rows.push('');
-
+    allRows.push(['--- GRUPO '+(idx+1)+' ---']);
+    allRows.push([]);
+    allRows.push(['RESUMEN DE VENTA']);
+    allRows.push(['Fecha Venta','BTC Vendido','Precio Medio Compra','Precio Venta','Coste Base','Ingresos Netos','Ganancia','Rentabilidad %']);
+    allRows.push([s.date, btc(s.btc), num(s.avgBuyPrice), num(s.sellPrice), num(s.costBasis), num(s.net), num(s.pnl), num(s.pnlPct)]);
+    allRows.push([]);
     if (lp.length > 0) {
-      rows.push([q('COMPRAS VINCULADAS'),'','','','',''].join(SEP));
-      rows.push([
-        q('Fecha Compra'), q('Dolares Invertidos'), q('Precio Compra'),
-        q('BTC Obtenidos'), q('Comision Compra'), q('Coste Total')
-      ].join(SEP));
-      lp.forEach(p => {
-        rows.push([
-          q(p.date), num(p.usd), num(p.price),
-          btc(p.btc), num(p.buyFee), num(p.totalCost)
-        ].join(SEP));
-      });
-      rows.push([
-        q('TOTALES'),
-        num(lp.reduce((s,p)=>s+p.usd,0)), '',
-        btc(lp.reduce((s,p)=>s+p.btc,0)),
-        num(lp.reduce((s,p)=>s+p.buyFee,0)),
-        num(lp.reduce((s,p)=>s+p.totalCost,0))
-      ].join(SEP));
+      allRows.push(['COMPRAS VINCULADAS']);
+      allRows.push(['Fecha Compra','Dolares Invertidos','Precio Compra','BTC Obtenidos','Comision Compra','Coste Total']);
+      lp.forEach(p => allRows.push([p.date, num(p.usd), num(p.price), btc(p.btc), num(p.buyFee), num(p.totalCost)]));
+      allRows.push(['TOTALES', num(lp.reduce((s,p)=>s+p.usd,0)), '', btc(lp.reduce((s,p)=>s+p.btc,0)), num(lp.reduce((s,p)=>s+p.buyFee,0)), num(lp.reduce((s,p)=>s+p.totalCost,0))]);
     }
-    rows.push('');
-    rows.push('');
+    allRows.push([]);
+    allRows.push([]);
   });
 
   if (checked.length > 1) {
-    rows.push(q('--- RESUMEN GLOBAL ---'));
-    rows.push('');
-    rows.push([
-      q('Fecha'), q('BTC'), q('Precio Medio Compra'), q('Precio Venta'),
-      q('Coste Base'), q('Ingresos Netos'), q('Ganancia'), q('Rentabilidad %')
-    ].join(SEP));
+    allRows.push(['--- RESUMEN GLOBAL ---']);
+    allRows.push([]);
+    allRows.push(['Fecha','BTC','Precio Medio Compra','Precio Venta','Coste Base','Ingresos Netos','Ganancia','Rentabilidad %']);
     let totalPnl = 0;
     checked.forEach(chk => {
       const s = sales.find(x=>x.id===parseInt(chk.dataset.id));
       if (!s) return;
       totalPnl += s.pnl;
-      rows.push([
-        q(s.date), btc(s.btc), num(s.avgBuyPrice), num(s.sellPrice),
-        num(s.costBasis), num(s.net), num(s.pnl), num(s.pnlPct)
-      ].join(SEP));
+      allRows.push([s.date, btc(s.btc), num(s.avgBuyPrice), num(s.sellPrice), num(s.costBasis), num(s.net), num(s.pnl), num(s.pnlPct)]);
     });
-    rows.push([q('TOTAL'),'','','','','', num(totalPnl), ''].join(SEP));
+    allRows.push(['TOTAL','','','','','', num(totalPnl),'']);
   }
 
-  const csv      = rows.join('\r\n');
-  const filename = 'BTC_Inversiones_'+new Date().toLocaleDateString('es-ES').replace(/\//g,'-')+'.csv';
-  const blob     = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const tsv = allRows.map(r => r.join('\t')).join('\n');
+  mostrarDatosEnPantalla(tsv);
+}
 
-  // Método 1: Web Share API
-  if (navigator.canShare) {
-    try {
-      const file = new File([blob], filename, {type:'text/csv'});
-      if (navigator.canShare({files:[file]})) {
-        navigator.share({files:[file], title:'BTC Inversiones'});
-        return;
-      }
-    } catch(e) {}
-  }
+function mostrarDatosEnPantalla(tsv) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:200;display:flex;flex-direction:column;padding:20px;gap:12px;';
 
-  // Método 2: descarga directa
-  try {
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href = url; a.download = filename; a.style.display='none';
-    document.body.appendChild(a); a.click();
-    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-    return;
-  } catch(e) {}
+  const id = 'tsv-area-'+Date.now();
+  overlay.innerHTML = `
+    <div style="color:#4caf7a;font-size:13px;letter-spacing:0.1em;text-transform:uppercase;">Exportar a Google Sheets</div>
+    <div style="color:#8a7850;font-size:11px;line-height:1.6;">
+      1. Pulsa <strong style="color:#f7931a;">Seleccionar todo</strong> y luego copia (mantén pulsado → Copiar)<br>
+      2. Abre Google Sheets y pega en la celda <strong style="color:#e8e0cc;">A1</strong>
+    </div>
+    <textarea id="${id}" readonly style="flex:1;background:#0a0908;color:#e8e0cc;border:1px solid #3a3020;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;resize:none;">${tsv}</textarea>
+    <div style="display:flex;gap:10px;">
+      <button onclick="
+        var ta=document.getElementById('${id}');
+        ta.focus();ta.select();
+        try{
+          document.execCommand('selectAll');
+          var ok=document.execCommand('copy');
+          if(ok){this.textContent='✓ Copiado!';}else{this.textContent='Selecciona y copia manualmente';}
+        }catch(e){this.textContent='Selecciona y copia manualmente';}
+      " style="flex:1;background:linear-gradient(135deg,#2a6040,#1e4a30);border:1px solid #3a7050;color:#4cdf7a;border-radius:5px;padding:12px;cursor:pointer;font-family:inherit;font-weight:bold;font-size:13px;">
+        Seleccionar todo
+      </button>
+      <button onclick="window.open('https://sheets.new','_blank')"
+        style="flex:1;background:linear-gradient(135deg,#1a3a6a,#0e2040);border:1px solid #2a5090;color:#6ab0f7;border-radius:5px;padding:12px;cursor:pointer;font-family:inherit;font-weight:bold;font-size:13px;">
+        Abrir Sheets
+      </button>
+    </div>
+    <button onclick="this.parentElement.remove()"
+      style="background:#1a1810;border:1px solid #3a3020;color:#a89060;border-radius:5px;padding:10px;cursor:pointer;font-family:inherit;font-size:13px;">
+      Cerrar
+    </button>`;
 
-  // Método 3: data URI
-  try {
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-    a.download = filename; a.click();
-  } catch(e) {
-    alert('No se pudo descargar el archivo.');
-  }
+  document.body.appendChild(overlay);
+
+  // Seleccionar el texto automáticamente al abrir
+  setTimeout(() => {
+    const ta = document.getElementById(id);
+    if (ta) { ta.focus(); ta.select(); }
+  }, 100);
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render() {
+  const FEE=getFEE();
   const {totalBTC,totalInvested}=getTotals();
   const avgBuyPrice=totalBTC>0?totalInvested/totalBTC:0;
   const profit=getTargetProfit();
@@ -439,12 +430,18 @@ function render() {
   // Panel objetivo
   const pp=document.getElementById('profit-panel');
   if (purchases.length>0) {
-    const reqSell=(totalInvested*(1+profit/100))/(1-FEE)/totalBTC;
+    // Si FEE es 0 la fórmula se simplifica: precio = totalInvested*(1+profit/100)/totalBTC
+    const reqSell = FEE < 1
+      ? (totalInvested*(1+profit/100)) / ((1-FEE)*totalBTC)
+      : totalInvested*(1+profit/100)/totalBTC;
     const netProc=reqSell*totalBTC*(1-FEE);
     const netGain=netProc-totalInvested;
     const totalBuyFees=purchases.reduce((s,p)=>s+p.buyFee,0);
     const totalFees=totalBuyFees+reqSell*totalBTC*FEE;
     const pctFromAvg=((reqSell-avgBuyPrice)/avgBuyPrice)*100;
+    const feeLabel = FEE>0
+      ? `<div class="result-card"><div class="result-label">Comisiones Totales</div><div style="font-size:15px;font-weight:bold;color:#c47a40;">${usd(totalFees)}</div><div class="result-sub">compra + venta proyectada</div></div>`
+      : `<div class="result-card"><div class="result-label">Comisiones</div><div style="font-size:15px;font-weight:bold;color:#5a5840;">$0,00</div><div class="result-sub">sin comisión configurada</div></div>`;
     pp.innerHTML=`<div class="grid2">
       <div style="background:#141209;border:1px solid #f7931a33;border-radius:6px;padding:16px;grid-column:1/-1;">
         <div style="font-size:11px;color:#9a8860;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">Precio de Venta Necesario</div>
@@ -454,7 +451,7 @@ function render() {
       <div class="result-card"><div class="result-label">Ingresos Brutos</div><div style="font-size:15px;font-weight:bold;">${usd(reqSell*totalBTC)}</div><div class="result-sub">antes de comisión venta</div></div>
       <div class="result-card"><div class="result-label">Ingresos Netos</div><div style="font-size:15px;font-weight:bold;">${usd(netProc)}</div><div class="result-sub">tras comisión venta</div></div>
       <div class="result-card"><div class="result-label">Ganancia Neta</div><div style="font-size:15px;font-weight:bold;color:#4caf7a;">+${usd(netGain)}</div><div class="result-sub">objetivo ${profit}%</div></div>
-      <div class="result-card"><div class="result-label">Comisiones Totales</div><div style="font-size:15px;font-weight:bold;color:#c47a40;">${usd(totalFees)}</div><div class="result-sub">compra + venta proyectada</div></div>
+      ${feeLabel}
     </div>`;
   } else {
     pp.innerHTML='<div style="text-align:center;color:#7a6840;font-size:13px;padding:20px 0;">Añade compras para ver el precio objetivo de venta</div>';
@@ -539,7 +536,6 @@ function render() {
         </div>`;
     }).join('');
 
-    // Cabecera de columnas (una vez, encima)
     const headerHTML=`<div style="display:flex;border-bottom:1px solid #2a2416;background:#0a0908;">
       <div style="width:70px;flex-shrink:0;"></div>
       <table style="flex:1;min-width:600px;"><thead><tr>
